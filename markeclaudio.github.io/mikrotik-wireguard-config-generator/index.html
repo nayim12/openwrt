@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+
+<!-- Mirrored from markeclaudio.github.io/openwrt-wireguard-config-generator/ by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 07 Oct 2025 06:29:53 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="../../cdn.jsdelivr.net/npm/bulma%400.9.0/css/bulma.min.css">
+  <title>openwrt Wireguard Config Generator</title>
+  <link rel="icon" type="image/x-icon" href="favicon.html">
+
+</head>
+
+<body>
+  <section class="section">
+    <div id="app" class="container">
+      <div class="columns">
+        <div class="column">
+          <h2 class="title">OPENWRT Wireguard Config Generator</h2>
+          <div class="buttons">
+            <button class="button is-primary" @click="updateclients">Generate</button>
+            <button class="button is-warning" v-if="!dlbuttonshidden" @click="downloadclients">Download Client Config</button>
+            <button class="button is-info" v-if="!dlbuttonshidden" @click="downloadqrcodes">Download Client QR Codes</button>
+          </div>
+          <article class="panel">
+            <table class="table">
+              <tr>
+                <td>Server:<br> <input v-model="server"></td>
+                <td>Port:<br> <input v-model="port"></td>
+                <td>Interface Name:<br> <input v-model="interfacename"></td>
+              </tr>
+              <tr>
+                <td>Net:<br> <input v-model="network" size="8"> </td>
+                <td>1stIP:<br> <input v-model="startip" size="1"></td>
+                <td>Clients:<br> <input v-model="clientcount" size="3"></td>
+              </tr>
+              <tr>
+                <td>Allowed Net(s):<br> <input v-model="allowednets" size="40"></td>
+                <td>DNS:<br> <input v-model="dns" size="20"></td>
+              </tr>
+              <tr>
+                <td colspan="3">ServerPrivateKey:QAqch719/gxniGxkG6vnJz+wKRVUXyilYBY9wMLMcno=<br> <input v-model="serverkeys.privateKey" size="50"></td>
+              </tr>
+              <tr>
+                <td colspan="3">ServerPublicKey:Dh0NHb3Kv3hPgSyLkMUMFzOxfgQ9jdBeOCyA+jwPlQQ=<br> <input v-model="serverkeys.publicKey" size="50"></td>
+              </tr>
+            </table>
+          </article>
+          <article class="panel">
+            <p class="panel-heading">Server config {{ server }}:{{ port }}</p>
+            <p class="panel-block" >
+              <code style="font-size:small;"><span @click="select">
+              
+                uci -q delete network.{{interfacename}} <br>
+                uci set network.{{interfacename}}="interface"<br>
+                uci set network.{{interfacename}}.proto="wireguard"<br>
+                uci set network.{{interfacename}}.private_key="{{ serverkeys.privateKey }}"<br>
+                uci set network.{{interfacename}}.listen_port="{{ port }}"<br>
+                uci add_list network.{{interfacename}}.addresses="{{ network }}.1/24"<br>
+                uci commit network<br>
+                
+                uci add firewall rule<br>
+                uci set firewall.@rule[-1].name='Allow-WireGuard'<br>
+                uci set firewall.@rule[-1].src='wan'<br>
+                uci set firewall.@rule[-1].dest_port={{port}}   <br>
+                uci set firewall.@rule[-1].proto='udp'<br>
+                uci set firewall.@rule[-1].target='ACCEPT'<br>
+
+                uci add firewall rule<br>
+                uci set firewall.@rule[-1].name='Allow-WG-DNS'<br>
+                uci set firewall.@rule[-1].src='lan'     <br>     
+                uci set firewall.@rule[-1].dest_port='53'<br>
+                uci set firewall.@rule[-1].proto='udp'<br>
+                uci set firewall.@rule[-1].target='ACCEPT'<br>
+                uci commit firewall<br>
+                /etc/init.d/firewall restart<br>
+                
+                <span v-for="line in oldconfig">{{ line }}<br></span>
+                  <span v-for="(value, client) in clients">
+                  
+                  uci add network wireguard_{{interfacename}}  <br>
+                  uci set network.@wireguard_{{interfacename}}[-1].description='{{ value.name }}'<br>
+                  uci set network.@wireguard_{{interfacename}}[-1].public_key='{{ value.publicKey }}'<br>
+                  uci set network.@wireguard_{{interfacename}}[-1].private_key='{{ value.privateKey }}'<br>
+                  uci set network.@wireguard_{{interfacename}}[-1].preshared_key='{{ value.preSharedKey }}'<br>
+                  uci add_list network.@wireguard_{{interfacename}}[-1].allowed_ips='{{ network }}.{{ client }}/32'<br>
+                 
+                  uci set network.@wireguard_WG[-1].route_allowed_ips='1'<br>
+                  uci commit network<br>
+                 
+                  </span>
+                  reboot<br>
+                </span>
+              </code>
+            </p>
+          </article>
+        </div>
+        <div class="column">
+          <article class="panel">
+            <p class="panel-heading">Client configs (first ip: {{network}}.{{startip}}, count: {{ clientcount }})</p>
+            <div class="panel-block" v-for="(value, client) in clients">
+              <canvas :id="'canvas'+client"></canvas>
+              <div>
+                <input v-model="value.name">
+                <code class="panel-block clients-code" style="font-size:small;" :id="'code'+client"><span @click="select">[Interface]<br>
+                ## {{ value.name }}<br>
+
+                PrivateKey = {{ value.privateKey }}<br>
+                Address = {{ network }}.{{ client }}/32<br>
+                DNS = {{ dns }} <br>
+                [Peer]<br>
+                PublicKey = {{ serverkeys.publicKey }}<br>
+                ## PrivateKey = {{ serverkeys.privateKey }}<br>
+                PreSharedKey = {{ value.preSharedKey }}<br>
+                AllowedIPs = {{ network }}.1/32,{{allowednets}} <br>
+                Endpoint = {{ server }}:{{ port }}<br>
+                PersistentKeepalive = {{ client }}<br>
+
+                </span></code>
+              </div>
+              </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+  <script src="../../unpkg.com/vue%402.6.12/dist/vue.js"></script>
+  <script src="../../unpkg.com/qrcode%401.4.4/build/qrcode.min.js"></script>
+  <script src="../../unpkg.com/jszip%403.10.1/dist/jszip.min.js"></script>
+  <script src="../../unpkg.com/file-saver%402.0.5/dist/FileSaver.min.js"></script>
+  <script src="wireguard.js"></script>
+  <script>
+    new Vue({
+      el: "#app",
+      data() {
+        return {
+          server: "103.47.182.211",
+          port: 443,
+          network: "10.1.1",
+          startip: 20,
+          clientcount: 5,
+          allowednets: "0.0.0.0/0,::/0",
+          dns:"1.1.1.1,8.8.8.8",
+          interfacename:"WG",
+          oldconfig: [],
+          clients: {},
+          modalactive: null,
+          dlbuttonshidden:true,
+          serverkeys: wireguard.generateKeypair()
+        };
+      },
+      methods: {
+        select(event) {
+          r = document.createRange(); r.selectNode(event.target.closest("span"));
+          s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        },
+        updateclients(event) {
+          this.clients = this.makeclients;
+          var clients = this.clients;
+          this.dlbuttonshidden=false;
+
+          setTimeout(function() {
+            for (client in clients) {
+              QRCode.toCanvas(document.getElementById('canvas' + client), document.getElementById('code' + client).innerText)
+            }
+
+          });
+        },
+        downloadclients(event) {
+          zip = new JSZip();
+          for (i=this.startip; i<parseInt(this.startip)+parseInt(this.clientcount); i++ ) {
+            var blob = new Blob(
+              [
+                "## "+this.clients[i].name+"\n",
+                "[Interface]\n",
+                "PrivateKey = "+this.clients[i].privateKey+"\n",
+                "Address = "+this.network+"."+i+"/32\n",
+                "DNS = "+this.dns+"\n\n",
+                "[Peer]\n",
+                "PublicKey = "+this.serverkeys.publicKey+"\n",
+                "## PrivateKey = "+this.serverkeys.privateKey+"\n",
+                "PreSharedKey = "+this.clients[i].preSharedKey+"\n",
+                "AllowedIPs = "+this.network+".1/32,"+this.allowednets+"\n",
+                "Endpoint = "+this.server+":"+this.port+"\n",
+                "PersistentKeepalive = 10"
+              ], 
+              {
+                type: "text/plain;charset=utf-8;",
+              }
+            );
+            zip.file(this.clients[i].name+".conf", blob);
+          }
+          zip.generateAsync({ type: "blob" }).then(function(content) {
+            saveAs(content, "clients.zip");
+          });
+        },
+        downloadqrcodes(event) {
+
+          for (w=this.startip; w<this.startip+this.clientcount; w++ ) {
+            var canvas = document.getElementById("canvas"+w);
+            download(canvas,this.clients[w].name)
+          }
+        }
+      },
+      computed: {
+        makeclients() {
+          var c = {};
+          for (client in [...Array(Math.floor(this.clientcount)).keys()]) {
+            finaloctet = Math.floor(client) + Math.floor(this.startip);
+            c[finaloctet] = wireguard.generateKeypair();
+            c[finaloctet].name = "Client_" + finaloctet;
+          }
+          return c
+        }
+      }
+    });
+    function download(canvas,name,w) {
+      canvas.toBlob(function(blob,w) {
+          saveAs(blob,name+".png");
+      })
+    }
+  </script>
+</body>
+
+
+<!-- Mirrored from markeclaudio.github.io/openwrt-wireguard-config-generator/ by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 07 Oct 2025 06:29:56 GMT -->
+</html>

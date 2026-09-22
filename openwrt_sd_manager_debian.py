@@ -509,14 +509,31 @@ class App:
         threading.Thread(target=worker, daemon=True).start()
 
 
+def relaunch_as_root():
+    """Relaunch this script through pkexec so it can be run directly from Thonny."""
+    script = str(Path(__file__).resolve())
+    python = shutil.which("python3") or "/usr/bin/python3"
+
+    # pkexec starts a graphical authentication dialog on Debian systems
+    # with PolicyKit installed.
+    try:
+        return subprocess.Popen([
+            "pkexec", python, script
+        ]).wait()
+    except FileNotFoundError:
+        messagebox.showerror(
+            APP,
+            "pkexec is not installed.\n\n"
+            "Install it with:\n"
+            "sudo apt install policykit-1"
+        )
+        return 1
+
+
 def main():
     if not require_root():
-        print("Please run as root:")
-        print("  sudo python3 openwrt_sd_manager.py")
-        raise SystemExit(1)
-
-    if shutil.which("tkinter") is None:
-        pass
+        # When launched from Thonny, automatically request root privileges.
+        raise SystemExit(relaunch_as_root())
 
     root = tk.Tk()
     App(root)

@@ -1,0 +1,1 @@
+wget -qO /tmp/r8152.apk "https://raw.githubusercontent.com/nayim12/openwrt/main/kmod-r8152-6.12.94.2.22.1-r1.apk" && apk add --allow-untrusted /tmp/r8152.apk && modprobe r8152
